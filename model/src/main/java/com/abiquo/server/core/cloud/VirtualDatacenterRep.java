@@ -88,6 +88,9 @@ public class VirtualDatacenterRep extends DefaultRepBase
     @Autowired
     NodeVirtualImageDAO nodeviDao;
 
+    @Autowired
+    VirtualMachineDAO virtualMachineDao;
+
     public VirtualDatacenterRep()
     {
 
@@ -108,6 +111,7 @@ public class VirtualDatacenterRep extends DefaultRepBase
         this.dhcpDAO = new DhcpDAO(em);
         this.vmDao = new VirtualMachineDAO(em);
         this.nodeviDao = new NodeVirtualImageDAO(em);
+        this.virtualMachineDao = new VirtualMachineDAO(em);
     }
 
     public VirtualDatacenter findById(final Integer id)
@@ -409,6 +413,11 @@ public class VirtualDatacenterRep extends DefaultRepBase
     public void updateVirtualAppliance(final VirtualAppliance vapp)
     {
         virtualApplianceDAO.flush();
+    }
+
+    public void update(final VirtualMachine virtualMachine)
+    {
+        virtualMachineDao.flush();
     }
 
     public void insertVirtualAppliance(final VirtualAppliance vapp)

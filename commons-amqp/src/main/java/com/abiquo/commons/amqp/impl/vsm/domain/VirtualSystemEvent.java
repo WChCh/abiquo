@@ -98,4 +98,17 @@ public class VirtualSystemEvent implements Queuable
     {
         return JSONUtils.deserialize(bytes, VirtualSystemEvent.class);
     }
+
+    @Override
+    public String toString()
+    {
+        StringBuilder builder = new StringBuilder();
+
+        builder.append("Machine name: ").append(getVirtualSystemId());
+        builder.append(" Event: ").append(getEventType());
+        builder.append(" Hypervisor address: ").append(getVirtualSystemAddress());
+        builder.append(" Hypervisor type: ").append(getVirtualSystemType());
+
+        return builder.toString();
+    }
 }
