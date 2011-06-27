@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import com.abiquo.api.tracer.TracerLogger;
 import com.abiquo.commons.amqp.impl.vsm.VSMCallback;
 import com.abiquo.commons.amqp.impl.vsm.domain.VirtualSystemEvent;
 import com.abiquo.server.core.cloud.NodeVirtualImage;
@@ -39,6 +40,9 @@ import com.abiquo.server.core.cloud.State;
 import com.abiquo.server.core.cloud.VirtualAppliance;
 import com.abiquo.server.core.cloud.VirtualDatacenterRep;
 import com.abiquo.server.core.cloud.VirtualMachine;
+import com.abiquo.tracer.ComponentType;
+import com.abiquo.tracer.EventType;
+import com.abiquo.tracer.SeverityType;
 import com.abiquo.vsm.events.VMEventType;
 
 /**
@@ -54,8 +58,11 @@ public class EventingProcessor implements VSMCallback
     @Autowired
     protected VirtualDatacenterRep repo;
 
+    @Autowired
+    protected TracerLogger tracer;
+
     /** Event to virtual machine state translations */
-    Map<VMEventType, State> stateFromEvent = new HashMap<VMEventType, State>()
+    protected final Map<VMEventType, State> stateFromEvent = new HashMap<VMEventType, State>()
     {
         {
             put(VMEventType.POWER_OFF, State.POWERED_OFF);
@@ -68,7 +75,7 @@ public class EventingProcessor implements VSMCallback
     };
 
     /** Considered deployed states in a virtual machine */
-    Set<State> deployedStates = new HashSet<State>()
+    protected final Set<State> deployedStates = new HashSet<State>()
     {
         {
             add(State.PAUSED);
@@ -78,6 +85,20 @@ public class EventingProcessor implements VSMCallback
         }
     };
 
+    /** Event to log-event virtual machine translations */
+    protected final Map<VMEventType, EventType> logEventFromEvent =
+        new HashMap<VMEventType, EventType>()
+        {
+            {
+                put(VMEventType.POWER_OFF, EventType.VM_POWEROFF);
+                put(VMEventType.POWER_ON, EventType.VM_POWERON);
+                put(VMEventType.PAUSED, EventType.VM_PAUSED);
+                put(VMEventType.RESUMED, EventType.VM_RESUMED);
+                put(VMEventType.DESTROYED, EventType.VM_DESTROY);
+                put(VMEventType.MOVED, EventType.VM_MOVED);
+            }
+        };
+
     /**
      * Constructor for test purposes only.
      * 
@@ -86,6 +107,7 @@ public class EventingProcessor implements VSMCallback
     public EventingProcessor(EntityManager em)
     {
         this.repo = new VirtualDatacenterRep(em);
+        this.tracer = new TracerLogger();
     }
 
     @Override
@@ -157,7 +179,6 @@ public class EventingProcessor implements VSMCallback
     {
         switch (event)
         {
-            case CREATED:
             case PAUSED:
             case POWER_OFF:
             case POWER_ON:
@@ -165,10 +186,14 @@ public class EventingProcessor implements VSMCallback
             case SAVED:
                 machine.setState(stateFromEvent.get(event));
 
-                LOGGER.debug(String.format(
-                    "Processed %s event in machine %s, the current machine state is %s.", event
-                        .toString().toUpperCase(), machine.getName(), machine.getState().toString()
-                        .toUpperCase()));
+                String message =
+                    String.format(
+                        "Processed %s event in machine %s, the current machine state is %s.",
+                        event.name(), machine.getName(), machine.getState().name());
+
+                traceVirtualMachineStateUpdated(notification, message);
+                LOGGER.debug(message);
+
                 break;
 
             default:
@@ -215,10 +240,13 @@ public class EventingProcessor implements VSMCallback
 
         if (state != appliance.getState() || substate != appliance.getSubState())
         {
-            LOGGER.debug(String.format(
-                "Virtual appliance %s state has been updated from %s/%s to %s/%s", appliance
-                    .getName(), state.toString(), substate.toString(), appliance.getState()
-                    .toString(), appliance.getSubState().toString()));
+            String message =
+                String.format("Virtual appliance %s state has been updated from %s/%s to %s/%s",
+                    appliance.getName(), state.toString(), substate.toString(), appliance
+                        .getState().toString(), appliance.getSubState().toString());
+
+            traceVirtualApplianceStateUpdated(message);
+            LOGGER.debug(message);
         }
 
         return appliance;
@@ -275,6 +303,36 @@ public class EventingProcessor implements VSMCallback
         }
 
         return true;
+    }
+
+    /**
+     * Publish an INFO system log to tracer system with VIRTUAL_MACHINE component type.
+     * 
+     * @param notification The received notification.
+     * @param message The message to publish
+     */
+    protected void traceVirtualMachineStateUpdated(final VirtualSystemEvent notification,
+        final String message)
+    {
+        VMEventType event = eventFromString(notification.getEventType());
+
+        if (logEventFromEvent.containsKey(event))
+        {
+            tracer.systemLog(SeverityType.INFO, ComponentType.VIRTUAL_MACHINE,
+                logEventFromEvent.get(event), message);
+        }
+    }
+
+    /**
+     * Publish an INFO system log to tracer system with VIRTUAL_APPLIANCE component type.
+     * 
+     * @param message The message to publish
+     */
+    protected void traceVirtualApplianceStateUpdated(final String message)
+    {
+        // TODO use a correct EventType
+        tracer.systemLog(SeverityType.INFO, ComponentType.VIRTUAL_APPLIANCE,
+            EventType.VAPP_REFRESH, message);
     }
 
     protected VMEventType eventFromString(final String name)
