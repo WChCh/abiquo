@@ -31,6 +31,9 @@ import javax.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.abiquo.api.tracer.TracerLogger;
 import com.abiquo.commons.amqp.impl.vsm.VSMCallback;
@@ -51,6 +54,8 @@ import com.abiquo.vsm.events.VMEventType;
  * 
  * @author eruiz@abiquo.com
  */
+@Service
+@Transactional(readOnly = false, propagation = Propagation.REQUIRED)
 public class EventingProcessor implements VSMCallback
 {
     private final static Logger LOGGER = LoggerFactory.getLogger(EventingProcessor.class);
@@ -108,6 +113,11 @@ public class EventingProcessor implements VSMCallback
     {
         this.repo = new VirtualDatacenterRep(em);
         this.tracer = new TracerLogger();
+    }
+
+    public EventingProcessor()
+    {
+        // TODO Auto-generated constructor stub
     }
 
     @Override

@@ -84,8 +84,7 @@
 		<servlet-name>restSdkAdmin</servlet-name>
 		<url-pattern>/console</url-pattern>
 	</servlet-mapping>
-
-
+	
 	<listener>
 		<listener-class>com.abiquo.api.web.listener.LicenseContextListener</listener-class>
 	</listener>
@@ -94,4 +93,7 @@
 		<listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
 	</listener>
 
+    <listener>
+		<listener-class>com.abiquo.api.web.listener.AMQPConsumersListener</listener-class>
+	</listener>
 </web-app>

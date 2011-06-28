@@ -60,9 +60,6 @@ public class ContextListener implements ServletContextListener
     /** The task service to run scheduled tasks. */
     private TaskService taskService;
 
-    /** The RabbitMQ consumer for VSM **/
-    protected VSMConsumer consumer;
-
     /** The RabbitMQ consumer for AM **/
     protected AMConsumer amconsumer;
 
@@ -79,7 +76,6 @@ public class ContextListener implements ServletContextListener
 
             initializeTracer();
             initializeTaskService();
-            initializeVSMListener();
             initializeAMListener();
             initializeTracerListener();
 
@@ -89,19 +85,6 @@ public class ContextListener implements ServletContextListener
         {
             LOGGER.error("An error occurred while initializing the context", ex);
         }
-    }
-
-    /**
-     * Creates an instance of {@link VSMConsumer}, add all the needed listeners {@link VSMCallback}
-     * and starts the consuming.
-     * 
-     * @throws IOException When there is some network error.
-     */
-    protected void initializeVSMListener() throws IOException
-    {
-        consumer = new VSMConsumer(VSMConfiguration.EVENT_SYNK_QUEUE);
-        consumer.addCallback(new VSMListener());
-        consumer.start();
     }
 
     /**
@@ -128,16 +111,6 @@ public class ContextListener implements ServletContextListener
         amconsumer = new AMConsumer();
         amconsumer.addCallback(new AMSink());
         amconsumer.start();
-    }
-
-    /**
-     * Stops the {@link VSMConsumer}.
-     * 
-     * @throws IOException When there is some network error.
-     */
-    private void shutdownVSMListener() throws IOException
-    {
-        consumer.stop();
     }
 
     /**
@@ -243,7 +216,6 @@ public class ContextListener implements ServletContextListener
 
         try
         {
-            shutdownVSMListener();
             shutdownAMListener();
             shutdownTracerListener();
         }
