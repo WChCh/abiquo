@@ -117,7 +117,6 @@ public class EventingProcessor implements VSMCallback
 
     public EventingProcessor()
     {
-        // TODO Auto-generated constructor stub
     }
 
     @Override
@@ -195,15 +194,7 @@ public class EventingProcessor implements VSMCallback
             case RESUMED:
             case SAVED:
                 machine.setState(stateFromEvent.get(event));
-
-                String message =
-                    String.format(
-                        "Processed %s event in machine %s, the current machine state is %s.",
-                        event.name(), machine.getName(), machine.getState().name());
-
-                traceVirtualMachineStateUpdated(notification, message);
-                LOGGER.debug(message);
-
+                logAndTraceVirtualMachineStateUpdated(machine, event, notification);
                 break;
 
             default:
@@ -313,6 +304,17 @@ public class EventingProcessor implements VSMCallback
         }
 
         return true;
+    }
+
+    protected void logAndTraceVirtualMachineStateUpdated(final VirtualMachine machine,
+        final VMEventType event, final VirtualSystemEvent notification)
+    {
+        String message =
+            String.format("Processed %s event in machine %s, the current machine state is %s.",
+                event.name(), machine.getName(), machine.getState().name());
+
+        traceVirtualMachineStateUpdated(notification, message);
+        LOGGER.debug(message);
     }
 
     /**

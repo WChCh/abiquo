@@ -270,7 +270,7 @@ public class InfrastructureRep extends DefaultRepBase
     {
         return this.ucsRackDao.existAnyOtherWithIP(ip);
     }
-    
+
     public boolean existsAnyMachineWithName(final Datacenter datacenter, final String name)
     {
         assert datacenter != null;
@@ -409,6 +409,11 @@ public class InfrastructureRep extends DefaultRepBase
         assert !StringUtils.isEmpty(ipService);
 
         return hypervisorDao.existsAnyWithIpService(ipService);
+    }
+
+    public Hypervisor findHypervisor(final String ip)
+    {
+        return hypervisorDao.findHypervisor(ip);
     }
 
     public List<Datastore> findMachineDatastores(final Machine machine)

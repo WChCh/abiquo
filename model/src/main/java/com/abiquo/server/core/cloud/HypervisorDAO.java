@@ -26,12 +26,16 @@ import java.util.List;
 import javax.persistence.EntityManager;
 
 import org.apache.commons.lang.StringUtils;
+import org.hibernate.Criteria;
 import org.hibernate.Query;
 import org.hibernate.criterion.Criterion;
+import org.hibernate.criterion.Order;
 import org.hibernate.criterion.Restrictions;
 import org.springframework.stereotype.Repository;
 
 import com.abiquo.server.core.common.persistence.DefaultDAOBase;
+import com.abiquo.server.core.infrastructure.Machine;
+import com.abiquo.server.core.infrastructure.Machine.State;
 
 @Repository("jpaHypervisorDAO")
 public class HypervisorDAO extends DefaultDAOBase<Integer, Hypervisor>
@@ -58,6 +62,11 @@ public class HypervisorDAO extends DefaultDAOBase<Integer, Hypervisor>
         assert !StringUtils.isEmpty(ip);
 
         return existsAnyByCriterions(sameIp(ip, Hypervisor.IP_SERVICE_PROPERTY));
+    }
+
+    public Hypervisor findHypervisor(final String ip)
+    {
+        return findUniqueByProperty(Hypervisor.IP_PROPERTY, ip);
     }
 
     private Criterion sameIp(String ip, String propertyName)
