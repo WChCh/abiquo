@@ -24,13 +24,15 @@ package com.abiquo.api.eventing;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.persistence.Query;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.zeromq.ZMQ;
@@ -42,8 +44,8 @@ import com.abiquo.commons.amqp.impl.tracer.domain.Trace;
 /**
  * It receives tracing messages from remote modules and updates the metering table.
  */
-@Service
-public class SQLTracerListener extends DefaultApiService implements TracerCallback
+@Repository("jpaTracerUpdate")
+public class SQLTracerListener implements TracerCallback
 {
 
     /** The log system logger. */
@@ -55,13 +57,26 @@ public class SQLTracerListener extends DefaultApiService implements TracerCallba
 
     ZMQ.Context context;
 
+    @PostConstruct
+    public void initializeZeroMQContext()
+    {
+        context = ZMQ.context(1);
+        publisher = context.socket(ZMQ.PUB);
+        publisher.bind("tcp://10.60.1.225:15282");
+        LOGGER.info("JAUME: ZEROMQ initialized");
+    }
+
+    @PreDestroy
+    public void destroyZeroMQcontext()
+    {
+        context.term();
+        LOGGER.info("JAUME: ZEROMQ destroyed");
+    }
+
     @PersistenceContext
     public void setEntityManager(final EntityManager entityManager)
     {
         this.entityManager = entityManager;
-        context = ZMQ.context(1);
-        publisher = context.socket(ZMQ.PUB);
-        publisher.bind("tcp://10.60.1.225:15282");
     }
 
     /**
@@ -96,42 +111,50 @@ public class SQLTracerListener extends DefaultApiService implements TracerCallba
     public void onTrace(final Trace trace)
     {
 
-        String insert =
-            "INSERT DELAYED INTO metering(idDatacenter, datacenter, idRack, rack, idPhysicalMachine, physicalMachine,"
-                + " idStorageSystem, storageSystem, idStoragePool, storagePool, idVolume, volume, idNetwork, network,"
-                + " idSubnet, subnet, idEnterprise, enterprise, idUser, user, idVirtualDataCenter, virtualDataCenter,"
-                + " idVirtualApp, virtualApp, idVirtualMachine, virtualmachine, severity, performedby, actionperformed,"
-                + " component, stacktrace)"
-                + " VALUES (:datacenterId, :datacenter, :rackId, :rack, :machineId, :machine, :storageId, :storage,"
-                + " :storagePoolId, :storagePool, :volumeId, :volume, :networkId, :network, :subnetId, :subnet,"
-                + " :enterpriseId, :enterprise, :userId, :user, :virtualDatacenterId, :virtualDatacenter, :virtualAppId,"
-                + " :virtualApp, :virtualMachineId, :virtualMachine, :severity, :performedBy, :actionPerformed,"
-                + " :component, :stacktrace)";
+        /* String insert = */
+        /*     "INSERT DELAYED INTO metering(idDatacenter, datacenter, idRack, rack, idPhysicalMachine, physicalMachine," */
+        /*         + " idStorageSystem, storageSystem, idStoragePool, storagePool, idVolume, volume, idNetwork, network," */
+        /*         + " idSubnet, subnet, idEnterprise, enterprise, idUser, user, idVirtualDataCenter, virtualDataCenter," */
+        /*         + " idVirtualApp, virtualApp, idVirtualMachine, virtualmachine, severity, performedby, actionperformed," */
+        /*         + " component, stacktrace)" */
+        /*         + " VALUES (:datacenterId, :datacenter, :rackId, :rack, :machineId, :machine, :storageId, :storage," */
+        /*         + " :storagePoolId, :storagePool, :volumeId, :volume, :networkId, :network, :subnetId, :subnet," */
+        /*         + " :enterpriseId, :enterprise, :userId, :user, :virtualDatacenterId, :virtualDatacenter, :virtualAppId," */
+        /*         + " :virtualApp, :virtualMachineId, :virtualMachine, :severity, :performedBy, :actionPerformed," */
+        /*         + " :component, :stacktrace)"; */
 
-        Query query =
-            entityManager.createNativeQuery(insert).setParameter("severity", trace.getSeverity())
-                .setParameter("performedBy", trace.getUsername())
-                .setParameter("actionPerformed", trace.getEvent())
-                .setParameter("component", trace.getComponent())
-                // .setParameter("stacktrace", trace.getMessage());
-                .setParameter("stacktrace", "unknown message");
+        /* Query query = */
+        /*     entityManager.createNativeQuery(insert).setParameter("severity", trace.getSeverity()) */
+        /*         .setParameter("performedBy", trace.getUsername()) */
+        /*         .setParameter("actionPerformed", trace.getEvent()) */
+        /*         .setParameter("component", trace.getComponent()) */
+        /*         // .setParameter("stacktrace", trace.getMessage()); */
+        /*         .setParameter("stacktrace", "unknown message"); */
 
-        // TODO: Remove these parameters. Currently the hierarchy shows the enterprise and user
-        // who performs the action. Not the enterprise/user resource where the action happens!
-        query.setParameter("enterpriseId", trace.getEnterpriseId());
-        query.setParameter("enterprise", trace.getEnterpriseName());
-        query.setParameter("userId", trace.getUserId());
-        query.setParameter("user", trace.getUsername());
+        /* // TODO: Remove these parameters. Currently the hierarchy shows the enterprise and user */
+        /* // who performs the action. Not the enterprise/user resource where the action happens! */
+        /* query.setParameter("enterpriseId", trace.getEnterpriseId()); */
+        /* query.setParameter("enterprise", trace.getEnterpriseName()); */
+        /* query.setParameter("userId", trace.getUserId()); */
+        /* query.setParameter("user", trace.getUsername()); */
 
-        addTraceParameters(trace, query);
+        /* addTraceParameters(trace, query); */
 
-        query.executeUpdate();
+        /* query.executeUpdate(); */
 
         String event =
             String.format("Event:%s Component:%s Performed By:%s", trace.getEvent(),
                 trace.getComponent(), trace.getUsername());
         LOGGER.info("Eveeeeent:" + event);
-        publisher.send(event.getBytes(), 0);
+        if (publisher == null)
+        {
+            LOGGER.info("JAUME:Why is null???");
+        }
+        else
+        {
+            publisher.send(event.getBytes(), 0);
+        }
+
         LOGGER.info("Done");
 
     }
