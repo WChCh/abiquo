@@ -33,13 +33,9 @@ import com.abiquo.abicloud.taskservice.TaskService;
 import com.abiquo.abicloud.taskservice.exception.TaskServiceException;
 import com.abiquo.abicloud.taskservice.factory.TaskServiceFactory;
 import com.abiquo.abiserver.eventing.AMSink;
-import com.abiquo.abiserver.eventing.SQLTracerListener;
 import com.abiquo.abiserver.eventing.VSMListener;
-import com.abiquo.abiserver.tracerprocessor.DBTracerProcessor;
 import com.abiquo.commons.amqp.impl.am.AMCallback;
 import com.abiquo.commons.amqp.impl.am.AMConsumer;
-import com.abiquo.commons.amqp.impl.tracer.TracerCallback;
-import com.abiquo.commons.amqp.impl.tracer.TracerConsumer;
 import com.abiquo.commons.amqp.impl.vsm.VSMCallback;
 import com.abiquo.commons.amqp.impl.vsm.VSMConfiguration;
 import com.abiquo.commons.amqp.impl.vsm.VSMConsumer;
@@ -66,9 +62,6 @@ public class ContextListener implements ServletContextListener
     /** The RabbitMQ consumer for AM **/
     protected AMConsumer amconsumer;
 
-    /** The RabbitMQ consumer for Tracer **/
-    protected TracerConsumer tracerConsumer;
-
     @Override
     public void contextInitialized(final ServletContextEvent sce)
     {
@@ -81,7 +74,6 @@ public class ContextListener implements ServletContextListener
             initializeTaskService();
             initializeVSMListener();
             initializeAMListener();
-            initializeTracerListener();
 
             LOGGER.info("The context [" + contextName + "] has been initialized");
         }
@@ -102,19 +94,6 @@ public class ContextListener implements ServletContextListener
         consumer = new VSMConsumer(VSMConfiguration.EVENT_SYNK_QUEUE);
         consumer.addCallback(new VSMListener());
         consumer.start();
-    }
-
-    /**
-     * Creates an instance of {@link TracerConsumer}, add all the needed listeners
-     * {@link TracerCallback} and starts the consuming.
-     * 
-     * @throws IOException When there is some network error.
-     */
-    protected void initializeTracerListener() throws IOException
-    {
-        tracerConsumer = new TracerConsumer();
-        tracerConsumer.addCallback(new SQLTracerListener());
-        tracerConsumer.start();
     }
 
     /**
@@ -141,16 +120,6 @@ public class ContextListener implements ServletContextListener
     }
 
     /**
-     * Stops the {@link TracerConsumer}.
-     * 
-     * @throws IOException When there is some network error.
-     */
-    private void shutdownTracerListener() throws IOException
-    {
-        tracerConsumer.stop();
-    }
-
-    /**
      * Stops the {@link AMConsumer}.
      * 
      * @throws IOException When there is some network error.
@@ -169,7 +138,6 @@ public class ContextListener implements ServletContextListener
         {
             TracerCollector t = TracerCollectorFactory.getTracerCollector();
             t.addListener(new LoggingTracerProcessor());
-            t.addListener(new DBTracerProcessor());
             // t.addListener(new MailingTracerProcessor());
             t.init();
         }
@@ -245,7 +213,6 @@ public class ContextListener implements ServletContextListener
         {
             shutdownVSMListener();
             shutdownAMListener();
-            shutdownTracerListener();
         }
         catch (IOException e)
         {

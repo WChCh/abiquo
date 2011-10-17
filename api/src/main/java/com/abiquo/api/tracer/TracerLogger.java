@@ -168,8 +168,6 @@ public class TracerLogger
         trace.setEnterpriseName(tracerContext.getEnterpriseName());
         trace.setUserId(tracerContext.getUserId());
         trace.setUsername(tracerContext.getUsername());
-        trace.setMessage(message);
-
         return trace;
     }
 
@@ -183,7 +181,6 @@ public class TracerLogger
         trace.setEvent(event.name());
         trace.setEnterpriseName(Enterprise.SYSTEM_ENTERPRISE.getName());
         trace.setUsername(User.SYSTEM_USER.getName());
-        trace.setMessage(message);
 
         return trace;
     }

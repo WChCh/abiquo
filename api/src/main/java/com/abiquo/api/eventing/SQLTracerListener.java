@@ -19,23 +19,50 @@
  * Boston, MA 02111-1307, USA.
  */
 
-package com.abiquo.abiserver.eventing;
+package com.abiquo.api.eventing;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import org.hibernate.Query;
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
+import javax.persistence.Query;
 
-import com.abiquo.abiserver.persistence.hibernate.HibernateDAOFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.zeromq.ZMQ;
+
+import com.abiquo.api.services.DefaultApiService;
 import com.abiquo.commons.amqp.impl.tracer.TracerCallback;
 import com.abiquo.commons.amqp.impl.tracer.domain.Trace;
 
 /**
  * It receives tracing messages from remote modules and updates the metering table.
  */
-public class SQLTracerListener implements TracerCallback
+@Service
+public class SQLTracerListener extends DefaultApiService implements TracerCallback
 {
-    private static final long serialVersionUID = 1L;
+
+    /** The log system logger. */
+    private static final Logger LOGGER = LoggerFactory.getLogger(SQLTracerListener.class);
+
+    protected EntityManager entityManager;
+
+    ZMQ.Socket publisher;
+
+    ZMQ.Context context;
+
+    @PersistenceContext
+    public void setEntityManager(final EntityManager entityManager)
+    {
+        this.entityManager = entityManager;
+        context = ZMQ.context(1);
+        publisher = context.socket(ZMQ.PUB);
+        publisher.bind("tcp://10.60.1.225:15282");
+    }
 
     /**
      * This map holds the mappings between the Hierarchy processor prefixes and the column in the
@@ -65,47 +92,48 @@ public class SQLTracerListener implements TracerCallback
     }
 
     @Override
+    @Transactional(readOnly = false, propagation = Propagation.REQUIRED)
     public void onTrace(final Trace trace)
     {
-        try
-        {
-            String insert =
-                "INSERT DELAYED INTO metering(idDatacenter, datacenter, idRack, rack, idPhysicalMachine, physicalMachine,"
-                    + " idStorageSystem, storageSystem, idStoragePool, storagePool, idVolume, volume, idNetwork, network,"
-                    + " idSubnet, subnet, idEnterprise, enterprise, idUser, user, idVirtualDataCenter, virtualDataCenter,"
-                    + " idVirtualApp, virtualApp, idVirtualMachine, virtualmachine, severity, performedby, actionperformed,"
-                    + " component, stacktrace)"
-                    + " VALUES (:datacenterId, :datacenter, :rackId, :rack, :machineId, :machine, :storageId, :storage,"
-                    + " :storagePoolId, :storagePool, :volumeId, :volume, :networkId, :network, :subnetId, :subnet,"
-                    + " :enterpriseId, :enterprise, :userId, :user, :virtualDatacenterId, :virtualDatacenter, :virtualAppId,"
-                    + " :virtualApp, :virtualMachineId, :virtualMachine, :severity, :performedBy, :actionPerformed,"
-                    + " :component, :stacktrace)";
 
-            HibernateDAOFactory.instance().beginConnection();
+        String insert =
+            "INSERT DELAYED INTO metering(idDatacenter, datacenter, idRack, rack, idPhysicalMachine, physicalMachine,"
+                + " idStorageSystem, storageSystem, idStoragePool, storagePool, idVolume, volume, idNetwork, network,"
+                + " idSubnet, subnet, idEnterprise, enterprise, idUser, user, idVirtualDataCenter, virtualDataCenter,"
+                + " idVirtualApp, virtualApp, idVirtualMachine, virtualmachine, severity, performedby, actionperformed,"
+                + " component, stacktrace)"
+                + " VALUES (:datacenterId, :datacenter, :rackId, :rack, :machineId, :machine, :storageId, :storage,"
+                + " :storagePoolId, :storagePool, :volumeId, :volume, :networkId, :network, :subnetId, :subnet,"
+                + " :enterpriseId, :enterprise, :userId, :user, :virtualDatacenterId, :virtualDatacenter, :virtualAppId,"
+                + " :virtualApp, :virtualMachineId, :virtualMachine, :severity, :performedBy, :actionPerformed,"
+                + " :component, :stacktrace)";
 
-            Query query =
-                HibernateDAOFactory.getSessionFactory().getCurrentSession().createSQLQuery(insert)
-                    .setParameter("severity", trace.getSeverity())
-                    .setParameter("performedBy", trace.getUsername())
-                    .setParameter("actionPerformed", trace.getEvent())
-                    .setParameter("component", trace.getComponent())
-                    .setParameter("stacktrace", trace.getMessage());
+        Query query =
+            entityManager.createNativeQuery(insert).setParameter("severity", trace.getSeverity())
+                .setParameter("performedBy", trace.getUsername())
+                .setParameter("actionPerformed", trace.getEvent())
+                .setParameter("component", trace.getComponent())
+                // .setParameter("stacktrace", trace.getMessage());
+                .setParameter("stacktrace", "unknown message");
 
-            // TODO: Remove these parameters. Currently the hierarchy shows the enterprise and user
-            // who performs the action. Not the enterprise/user resource where the action happens!
-            query.setParameter("enterpriseId", trace.getEnterpriseId());
-            query.setParameter("enterprise", trace.getEnterpriseName());
-            query.setParameter("userId", trace.getUserId());
-            query.setParameter("user", trace.getUsername());
+        // TODO: Remove these parameters. Currently the hierarchy shows the enterprise and user
+        // who performs the action. Not the enterprise/user resource where the action happens!
+        query.setParameter("enterpriseId", trace.getEnterpriseId());
+        query.setParameter("enterprise", trace.getEnterpriseName());
+        query.setParameter("userId", trace.getUserId());
+        query.setParameter("user", trace.getUsername());
 
-            addTraceParameters(trace, query);
+        addTraceParameters(trace, query);
 
-            query.executeUpdate();
-        }
-        finally
-        {
-            HibernateDAOFactory.instance().endConnection();
-        }
+        query.executeUpdate();
+
+        String event =
+            String.format("Event:%s Component:%s Performed By:%s", trace.getEvent(),
+                trace.getComponent(), trace.getUsername());
+        LOGGER.info("Eveeeeent:" + event);
+        publisher.send(event.getBytes(), 0);
+        LOGGER.info("Done");
+
     }
 
     private void addTraceParameters(final Trace trace, final Query query)
