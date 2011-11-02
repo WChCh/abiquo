@@ -249,7 +249,7 @@ public class PricingTemplate extends DefaultEntityBase
     private BigDecimal minimumChargePeriod;
 
     @Required(value = MINIMUM_CHARGE_PERIOD_REQUIRED)
-    @Min(value = 0)
+    @Min(value = 2)
     @Max(value = 6)
     @BigDec
     public BigDecimal getMinimumChargePeriod()
